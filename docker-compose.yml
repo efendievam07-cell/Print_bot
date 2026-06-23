@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: optop-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: optop
+      POSTGRES_PASSWORD: optop
+      POSTGRES_DB: optop
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U optop -d optop"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: optop-bot
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: postgresql+asyncpg://optop:optop@db:5432/optop
+      BOT_TOKEN: ${BOT_TOKEN}
+      API_SECRET_TOKEN: ${API_SECRET_TOKEN}
+      CONTROL_CHAT_ID: ${CONTROL_CHAT_ID}
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "8000:8000"
+    command: ["python", "-m", "bot.main"]
+
+volumes:
+  postgres_data:
