@@ -2,7 +2,6 @@ import asyncio
 import logging
 
 import uvicorn
-from aiohttp_socks import ProxyConnector
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
@@ -30,8 +29,7 @@ def create_bot() -> Bot:
     }
 
     if settings.telegram_proxy:
-        connector = ProxyConnector.from_url(settings.telegram_proxy)
-        session = AiohttpSession(aiohttp_kwargs={"connector": connector})
+        session = AiohttpSession(proxy=settings.telegram_proxy)
         bot_kwargs["session"] = session
         logger.info("Telegram-бот подключён через прокси")
 
