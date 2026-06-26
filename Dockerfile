@@ -1,12 +1,11 @@
 FROM python:3.11-slim
 
-RUN sed -i 's/deb.debian.org/mirror.yandex.ru/g' /etc/apt/sources.list.d/debian.sources || sed -i 's/deb.debian.org/mirror.yandex.ru/g' /etc/apt/sources.list
-
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libjpeg62-turbo \
-    zlib1g \
-    && rm -rf /var/lib/apt/lists/*
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

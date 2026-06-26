@@ -31,6 +31,8 @@ services:
       BOT_TOKEN: ${BOT_TOKEN}
       API_SECRET_TOKEN: ${API_SECRET_TOKEN}
       CONTROL_CHAT_ID: ${CONTROL_CHAT_ID}
+      ADMIN_ID: ${ADMIN_ID}
+      TELEGRAM_PROXY: ${TELEGRAM_PROXY}
     volumes:
       - ./data:/app/data
     ports:

@@ -5,13 +5,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.database.models import User
+from bot.filters.admin import IsAdminFilter
 
-router = Router()
+router = Router(name="admin")
 
-MY_TELEGRAM_ID = 1385570396
+# Весь роутер доступен только администраторам: фильтр на уровне роутера,
+# а не повтор lambda в каждом хендлере.
+router.message.filter(IsAdminFilter())
 
 
-@router.message(Command("add_user"), lambda msg: msg.from_user.id == MY_TELEGRAM_ID)
+@router.message(Command("add_user"))
 async def cmd_add_user(message: Message, session: AsyncSession) -> None:
     args = (message.text or "").split(maxsplit=1)
     if len(args) < 2:
@@ -34,7 +37,7 @@ async def cmd_add_user(message: Message, session: AsyncSession) -> None:
     await message.answer(f"Пользователь {telegram_id} добавлен.")
 
 
-@router.message(Command("remove_user"), lambda msg: msg.from_user.id == MY_TELEGRAM_ID)
+@router.message(Command("remove_user"))
 async def cmd_remove_user(message: Message, session: AsyncSession, db_user: User) -> None:
     args = (message.text or "").split(maxsplit=1)
     if len(args) < 2:
@@ -61,7 +64,7 @@ async def cmd_remove_user(message: Message, session: AsyncSession, db_user: User
     await message.answer(f"Пользователь {telegram_id} удалён.")
 
 
-@router.message(Command("users"), lambda msg: msg.from_user.id == MY_TELEGRAM_ID)
+@router.message(Command("users"))
 async def cmd_users(message: Message, session: AsyncSession) -> None:
     users = (await session.scalars(select(User).order_by(User.id))).all()
     if not users:

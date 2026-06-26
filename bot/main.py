@@ -15,7 +15,10 @@ from bot.middlewares import DbSessionMiddleware, WhitelistMiddleware
 from bot.utils.assets import ensure_default_assets
 from bot.utils.startup import ensure_admin_user
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 API_HOST = "0.0.0.0"
@@ -23,15 +26,43 @@ API_PORT = 8000
 
 
 def create_bot() -> Bot:
+    """Единственная точка инициализации транспорта Telegram.
+
+    SOCKS5/HTTP-прокси передаётся в aiogram строкой — aiogram сам собирает
+    ProxyConnector из aiohttp-socks. Ручной ProxyConnector здесь не нужен.
+    """
     default = DefaultBotProperties(parse_mode=ParseMode.HTML)
 
+    session = None
     if settings.telegram_proxy:
         session = AiohttpSession(proxy=settings.telegram_proxy)
-        bot = Bot(token=settings.bot_token, session=session, default=default)
-        logger.info("Telegram-бот подключён через HTTP-прокси")
-        return bot
+        scheme = settings.telegram_proxy.split("://", 1)[0]
+        logger.info("Telegram-сессия через прокси (%s)", scheme)
+    else:
+        logger.info("Telegram-сессия без прокси (прямое подключение)")
 
-    return Bot(token=settings.bot_token, default=default)
+    return Bot(token=settings.bot_token, session=session, default=default)
+
+
+async def verify_connection(bot: Bot) -> None:
+    """Честная проверка туннеля до запуска polling.
+
+    Если прокси-стек или версии библиотек битые, упадём здесь с понятной
+    ошибкой, а не повиснем молча после ложного 'Start polling'.
+    """
+    me = await bot.get_me()
+    logger.info("Подключение к Telegram OK: @%s (id=%s)", me.username, me.id)
+
+
+async def on_startup(bot: Bot) -> None:
+    """Снимаем возможный зависший вебхук и чистим висящие апдейты.
+
+    Закрывает класс багов '409 Conflict' и 'getUpdates не работает, пока
+    активен webhook'.
+    """
+    await bot.delete_webhook(drop_pending_updates=True)
+    logger.info("Webhook удалён, pending updates сброшены")
+    await ensure_admin_user()
 
 
 async def run_bot(dispatcher: Dispatcher, bot: Bot) -> None:
@@ -59,7 +90,9 @@ async def main() -> None:
     dispatcher.message.middleware(WhitelistMiddleware())
 
     dispatcher.include_router(main_router)
-    dispatcher.startup.register(ensure_admin_user)
+    dispatcher.startup.register(on_startup)
+
+    await verify_connection(bot)
 
     fastapi_app = create_app()
     fastapi_app.state.bot = bot
@@ -73,4 +106,7 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Остановка по сигналу")
