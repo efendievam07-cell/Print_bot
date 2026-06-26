@@ -86,8 +86,13 @@ async def main() -> None:
     bot = create_bot()
     dispatcher = Dispatcher(storage=MemoryStorage())
 
+    # DbSessionMiddleware — на update, чтобы session был доступен и фильтрам,
+    # и whitelist-мидлвари ниже по цепочке.
     dispatcher.update.middleware(DbSessionMiddleware())
-    dispatcher.message.middleware(WhitelistMiddleware())
+    # WhitelistMiddleware — ИМЕННО outer: он должен положить db_user в data ДО
+    # того, как отработают фильтры (например, IsAdminFilter), иначе фильтр
+    # упадёт с 'missing argument db_user'. Порядок: outer → фильтры → inner.
+    dispatcher.message.outer_middleware(WhitelistMiddleware())
 
     dispatcher.include_router(main_router)
     dispatcher.startup.register(on_startup)
