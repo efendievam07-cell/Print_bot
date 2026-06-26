@@ -23,6 +23,8 @@ services:
       dockerfile: Dockerfile
     container_name: optop-bot
     restart: unless-stopped
+    # ВНИМАНИЕ: НЕ ставить network_mode: "host" — это ломает DNS-алиас 'db'.
+    # Бот и БД общаются по имени сервиса только внутри bridge-сети compose.
     depends_on:
       db:
         condition: service_healthy
@@ -33,11 +35,25 @@ services:
       CONTROL_CHAT_ID: ${CONTROL_CHAT_ID}
       ADMIN_ID: ${ADMIN_ID}
       TELEGRAM_PROXY: ${TELEGRAM_PROXY}
+    # Явный DNS — страховка на случай локального резолва имён внутри контейнера.
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     volumes:
       - ./data:/app/data
     ports:
       - "8000:8000"
     command: ["python", "-m", "bot.main"]
+
+networks:
+  default:
+    driver: bridge
+    driver_opts:
+      # Подгоняем MTU bridge под MTU физического интерфейса VPS.
+      # Лечит молчаливый таймаут TLS-handshake через прокси (drop крупных пакетов).
+      # Узнать MTU хоста: `ip route get 8.8.8.8` → затем `ip link show <iface>`.
+      # Поставь значение <= MTU хоста (1400 — безопасный дефолт для VPS).
+      com.docker.network.driver.mtu: "1400"
 
 volumes:
   postgres_data:
